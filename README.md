@@ -23,7 +23,7 @@ Once you've set up the files and the training list, you can train the model. See
 
 Currently I've only set up the ResNetSE34L to take rhythmic features as input, and tested it with the ResNetSE34L_AM.yaml configuration. 
 
-Before I have time to implement a more convenient dataset size parameter, the train set size can be changed from line 127 in DatasetLoader.py. Test set size can be changes from line 152 in SpeakerNet.py.
+Before I have time to implement a more convenient dataset size parameter, the train set size can be changed from line 127 in DatasetLoader.py. Test set size can be changed from line 152 in SpeakerNet.py.
 
 
 # VoxCeleb trainer

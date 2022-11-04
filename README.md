@@ -2,7 +2,7 @@
 
 This repository uses a modification of the VoxCeleb-trainer implementation which can be found in https://github.com/clovaai/voxceleb_trainer.
 
-Training the model works exactly as described below in the description of the original VoxCeleb dataset. The rhythmic features are extracted after loading the .wav files and the code is largely based on the work by Mariem Boyafif.
+Training the model works exactly as described below in the description of the original VoxCeleb dataset. The rhythmic features are extracted after loading the .wav files and the code is largely based on the work by Mariem Bouafif.
 
 # Preparations
 

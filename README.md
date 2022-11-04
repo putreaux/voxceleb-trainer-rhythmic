@@ -19,7 +19,7 @@ The following script creates a list of training files into the /data folder.
 python filelister.py
 ```
 
-Once you've set up the files and the training list, you can train the model. See the section "Training examples" from below.
+Once you've set up the files and the training list, you can train the model. See the section "Training examples" from below. To acquire the data augmentation datasets, see section "Data Preparation" below. 
 
 Currently I've only set up the ResNetSE34L to take rhythmic features as input, and tested it with the ResNetSE34L_AM.yaml configuration. 
 

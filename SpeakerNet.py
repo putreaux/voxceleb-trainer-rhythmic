@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import numpy, sys, random
 import time, itertools, importlib
 
-from DatasetLoader import test_dataset_loader
+from DatasetLoader import test_dataset_loader, test_dataset_loader_for_identification
 from torch.cuda.amp import autocast, GradScaler
 
 
@@ -129,8 +129,46 @@ class ModelTrainer(object):
         return (loss / counter, top1 / counter)
 
     ## ===== ===== ===== ===== ===== ===== ===== =====
-    ## Evaluate from list
+    ## Evaluate from list. torch train test split 80/20
     ## ===== ===== ===== ===== ===== ===== ===== =====
+
+    def evaluateForIdentification(self, test_list, max_frames, test_path, **kwargs):
+        
+
+        counter = 0
+        index = 0
+        loss = 0
+        top1 = 0
+        # accuracy
+
+        with open(test_list) as f:
+            lines = f.readlines()
+
+
+        tstart = time.time()
+        test_dataset = test_dataset_loader_for_identification(test_list, max_frames, test_path, **kwargs)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False, sampler=None)
+        stepsize = test_loader.batch_size
+
+        for data, data_label in test_loader:
+            data = data.reshape(data.shape[0], 1, data.shape[1], data.shape[2])
+            self.__model__.eval()
+            label = torch.LongTensor(data_label).cuda()
+
+            nloss, prec1 = self.__model__(data, label)
+            loss += nloss.detach().cpu().item()
+            top1 += prec1.detach().cpu().item()
+            counter += 1
+            index += stepsize
+
+            telapsed = time.time() - tstart
+            tstart = time.time()
+
+            if 0 == 0:
+                sys.stdout.write("\rProcessing {:d} of {:d}:".format(index, test_loader.__len__() * test_loader.batch_size))
+                sys.stdout.write("Loss {:f} Acc {:2.3f}% - {:.2f} Hz ".format(loss / counter, top1 / counter, stepsize / telapsed))
+                sys.stdout.flush()
+        return (loss / counter, top1 / counter)
 
     def evaluateFromList(self, test_list, test_path, nDataLoaderThread, distributed, print_interval=100, num_eval=10, **kwargs):
 
@@ -164,6 +202,8 @@ class ModelTrainer(object):
             sampler = None
 
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=nDataLoaderThread, drop_last=False, sampler=sampler)
+
+        
 
         ## Extract features for every image
         for idx, data in enumerate(test_loader):

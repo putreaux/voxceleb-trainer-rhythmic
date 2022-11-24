@@ -43,7 +43,7 @@ def loadWAV(filename, max_frames, evalmode=True, num_eval=10):
         audio       = numpy.pad(audio, (0, shortage), 'wrap')
         audiosize   = audio.shape[0]
 
-    if evalmode:
+    if evalmode and 1==2:
         startframe = numpy.linspace(0,audiosize-max_audio,num=num_eval)
     else:
         startframe = numpy.array([numpy.int64(random.random()*(audiosize-max_audio))])
@@ -124,7 +124,7 @@ class train_dataset_loader(Dataset):
         # Read training files
         with open(train_list) as dataset_file:
             lines = dataset_file.readlines();
-        lines = lines[:1000]
+        #lines = lines[:1000]
         # Make a dictionary of ID names and ID indices
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
@@ -137,7 +137,7 @@ class train_dataset_loader(Dataset):
         for lidx, line in enumerate(lines):
             data = line.strip().split();
 
-            speaker_label = dictkeys[data[0]];
+            speaker_label = dictkeys[data[0]]
             filename = os.path.join(train_path,data[1]);
 
             self.data_label.append(speaker_label)
@@ -173,6 +173,46 @@ class train_dataset_loader(Dataset):
     def __len__(self):
         return len(self.data_list)
 
+
+class test_dataset_loader_for_identification(Dataset):
+    def __init__(self, test_list, max_frames, test_path, **kwargs):
+
+        self.test_list = test_list
+        self.max_frames = max_frames
+        self.test_path = test_path
+
+        # Read testing files
+        with open(test_list) as dataset_file:
+            lines = dataset_file.readlines();
+        #lines = lines[:200]
+        # Make a dictionary of ID names and ID indices
+        dictkeys = list(set([x.split()[0] for x in lines]))
+        dictkeys.sort()
+        dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
+        print(dictkeys)
+        # Parse the test list into file names and ID indices
+        self.data_list  = []
+        self.data_label = []
+
+        for lidx, line in enumerate(lines):
+            data = line.strip().split();
+
+            speaker_label = dictkeys[data[0]]
+            filename = os.path.join(test_path,data[1]);
+
+            self.data_label.append(speaker_label)
+            self.data_list.append(filename)
+    def __getitem__(self, index):
+        audio = loadWAV(self.data_list[index], self.max_frames, evalmode=True)
+
+        # TRANSFORM THE AUDIO INTO ITS RHYTHMIC FEATURES 
+        audio = concat_features(audio.flatten())
+        #print("audio shapeee ", audio.shape)
+        print(self.data_label[index], self.data_list[index], index)
+        return torch.FloatTensor(audio), self.data_label[index]
+
+    def __len__(self):
+        return len(self.data_list)
 
 
 class test_dataset_loader(Dataset):

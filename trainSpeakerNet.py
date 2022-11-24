@@ -52,12 +52,13 @@ parser.add_argument("--hard_rank",      type=int,   default=10,     help='Hard n
 parser.add_argument('--margin',         type=float, default=0.1,    help='Loss margin, only for some loss functions')
 parser.add_argument('--scale',          type=float, default=30,     help='Loss scale, only for some loss functions')
 parser.add_argument('--nPerSpeaker',    type=int,   default=1,      help='Number of utterances per speaker per batch, only for metric learning based losses')
-parser.add_argument('--nClasses',       type=int,   default=20,   help='Number of speakers in the softmax layer, only for softmax-based losses')
+parser.add_argument('--nClasses',       type=int,   default=20,     help='Number of speakers in the softmax layer, only for softmax-based losses')
 
 ## Evaluation parameters
 parser.add_argument('--dcf_p_target',   type=float, default=0.05,   help='A priori probability of the specified target speaker')
 parser.add_argument('--dcf_c_miss',     type=float, default=1,      help='Cost of a missed detection')
 parser.add_argument('--dcf_c_fa',       type=float, default=1,      help='Cost of a spurious detection')
+parser.add_argument('--verify',         type=bool,  default=False,  help='Evaluation is either verification or identification')
 
 ## Load and save
 parser.add_argument('--initial_model',  type=str,   default="",     help='Initial model weights')
@@ -67,7 +68,7 @@ parser.add_argument('--save_path',      type=str,   default="exps/exp1", help='P
 parser.add_argument('--train_list',     type=str,   default="data/train_list.txt",  help='Train list')
 parser.add_argument('--test_list',      type=str,   default="data/test_list.txt",   help='Evaluation list')
 parser.add_argument('--train_path',     type=str,   default="data/train", help='Absolute path to the train set')
-parser.add_argument('--test_path',      type=str,   default="data/test", help='Absolute path to the test set')
+parser.add_argument('--test_path',      type=str,   default="data/train", help='Absolute path to the test set')
 parser.add_argument('--musan_path',     type=str,   default="data/musan_split", help='Absolute path to the test set')
 parser.add_argument('--rir_path',       type=str,   default="data/RIRS_NOISES/simulated_rirs", help='Absolute path to the test set')
 
@@ -143,7 +144,6 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ## Initialise trainer and data loader
     train_dataset = train_dataset_loader(**vars(args))
-
     train_sampler = train_dataset_sampler(train_dataset, **vars(args))
 
     train_loader = torch.utils.data.DataLoader(
@@ -156,6 +156,7 @@ def main_worker(gpu, ngpus_per_node, args):
         drop_last=False,
     )
     trainer     = ModelTrainer(s, **vars(args))
+
 
     ## Load model weights
     modelfiles = glob.glob('%s/model0*.model'%args.model_save_path)
@@ -177,12 +178,17 @@ def main_worker(gpu, ngpus_per_node, args):
 
         pytorch_total_params = sum(p.numel() for p in s.module.__S__.parameters())
 
+        ## Initialize test loader
+        test_id_dataset = test_dataset_loader_for_identification(**vars(args))
+
+
+
         print('Total parameters: ',pytorch_total_params)
         print('Test list',args.test_list)
 
         sc, lab, _ = trainer.evaluateFromList(**vars(args))
 
-        if args.gpu == 0:
+        if args.gpu == 0 and args.verify == True:
 
             result = tuneThresholdfromScore(sc, lab, [1, 0.1])
 
@@ -190,6 +196,10 @@ def main_worker(gpu, ngpus_per_node, args):
             mindcf, threshold = ComputeMinDcf(fnrs, fprs, thresholds, args.dcf_p_target, args.dcf_c_miss, args.dcf_c_fa)
 
             print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "VEER {:2.4f}".format(result[1]), "MinDCF {:2.5f}".format(mindcf))
+        
+        if args.gpu == 0 and args.verify == False:
+            loss, acc = trainer.evaluateForIdentification(args.test_list, **kwargs)
+            print('agj')
 
         return
 
@@ -219,9 +229,9 @@ def main_worker(gpu, ngpus_per_node, args):
             print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, TEER/TAcc {:2.2f}, TLOSS {:f}, LR {:f}".format(it, traineer, loss, max(clr)))
             scorefile.write("Epoch {:d}, TEER/TAcc {:2.2f}, TLOSS {:f}, LR {:f} \n".format(it, traineer, loss, max(clr)))
 
-        if it % args.test_interval == 5:
+        if it % args.test_interval == 5 and args.verify==True:
 
-            sc, lab, _ = trainer.evaluateFromList(**vars(args))
+            #sc, lab, _ = trainer.evaluateFromList(**vars(args))
 
             if args.gpu == 0:
 
@@ -241,6 +251,12 @@ def main_worker(gpu, ngpus_per_node, args):
                     eerfile.write('{:2.4f}'.format(result[1]))
 
                 scorefile.flush()
+        if args.verify==False:
+            loss, acc = trainer.evaluateForIdentification(**vars(args))
+            if args.gpu == 0:
+               print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, Test Accuracy {:2.2f}, TLOSS {:f}".format(it, acc, loss))
+            trainer.saveParameters(args.model_save_path+"/model%09d.model"%it)
+
 
     if args.gpu == 0:
         scorefile.close()

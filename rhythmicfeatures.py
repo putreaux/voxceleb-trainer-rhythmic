@@ -226,7 +226,7 @@ def tempo(sound, frames):
 
 def mfcc(sound):
     #sound , sr = librosa.load(file_path+sound, sr=16000)
-    stft = librosa.stft(sound, n_fft=num_fft, hop_length=hop_len)
+    stft = np.abs(librosa.stft(sound, n_fft=num_fft, hop_length=hop_len))
     mfcc = librosa.feature.mfcc(S=stft, sr=sr, n_fft=num_fft, hop_length=hop_len)
     #print("mfcc shape: ", mfcc.shape)
     return normalize(mfcc)

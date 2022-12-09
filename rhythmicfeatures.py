@@ -284,4 +284,4 @@ def concat_features(sound):
         plt.title('Concatenation')
         plt.tight_layout()
         plt.show()
-    return mels
+    return c1

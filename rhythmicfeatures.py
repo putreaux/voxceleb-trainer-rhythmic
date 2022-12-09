@@ -257,10 +257,10 @@ def jitter_shimmer(sound, f0min, f0max):
         shimmer = call([audio_praat, pointProcess], "Get shimmer (local_dB)", point_to_sec, point2, 0.0001, 0.02, 1.3, 3.6)
         jitters.append(jitter)
         shimmers.append(shimmer)
-    jitters = np.array(jitters).reshape(1, len(jitters))
-    shimmers = np.array(shimmers).reshape(1, len(shimmers))
+    jitters = np.nan_to_num(np.array(jitters))
+    shimmers = np.nan_to_num(np.array(shimmers))
     #print(jitter, shimmer, audio_praat.values.shape)
-    return normalize(np.nan_to_num(jitters)), normalize(np.nan_to_num(shimmers))
+    return normalize(jitters).reshape(1, jitters.shape[0]), normalize(shimmers).reshape(1, shimmers.shape[0])
 
 
 # CONCATENATING RHYTHMIC FEATURES FOR THE AUDIO FILES AND SAVING THE DATA
@@ -275,7 +275,7 @@ def concat_features(sound):
     dlt = delta(sound)
     dlt2 = delta_delta(sound)
     mels = mel_spectrogram(sound)
-    jitter, shimmer = jitter_shimmer(sound, 50, 400)
+    jitter, shimmer = jitter_shimmer(sound, 50, 200)
     #print(rms.shape, ec.shape, jitter.shape, shimmer.shape)
     c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t, jitter, shimmer))
     if (display_mode):

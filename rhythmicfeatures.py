@@ -13,7 +13,11 @@ import audb
 import audiofile
 import opensmile
 from os.path import join
+import parselmouth
 
+from parselmouth.praat import call
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 from derivative import dxdt
 import librosa                     # librosa music package
@@ -145,13 +149,6 @@ inputMaxDelaySec = 0.5
 
 '''
 
-with open('my.conf', 'w') as fp:
-    fp.write(config_str)
-
-smile = opensmile.Smile(feature_set='my.conf',feature_level='lld',     loglevel=2,
-    logfile='smile.log')
-
-
 num_fft = 512
 hop_len = 256
 sr = 16000
@@ -242,19 +239,28 @@ def delta_delta(sound):
     d2 = librosa.feature.delta(mfcc_sound, order=2)
     return normalize(d2)
 
+def mel_spectrogram(sound):
+    mels = librosa.feature.melspectrogram(sound, sr=sr)
+    return normalize(mels)
 
 
-def jitter_shimmer(sound):
-    #print("soundi sheippii", sound.shape)
-    #print(smile.feature_names)
-    jitter = smile.process_signal(sound,sr).jitterLocal
-    shimmer = smile.process_signal(sound, sr).shimmerLocalDB
-    #mfcc_os = smile.process_signal(sound, sr).mfcc1_sma3
-    print("jitter shimmer shape", jitter.shape, shimmer.shape, list(jitter), list(shimmer))
-    jitter = np.array(list(jitter))
-    shimmer = np.array(list(shimmer))
-    mfcc_os = np.array(list(mfcc_os))
-    return normalize(jitter), normalize(shimmer)
+def jitter_shimmer(sound, f0min, f0max):
+    audio_praat = parselmouth.Sound(values=sound, sampling_frequency=16000)
+    #print(audio_praat.sampling_period, audio_praat.n_samples)
+    pointProcess = call(audio_praat, "To PointProcess (periodic, cc)", f0min, f0max)
+    jitters = []
+    shimmers = []
+    for time in range(-hop_len, sound.shape[0]-hop_len, hop_len):
+        point_to_sec = max(0,time/16000)
+        point2 = min(sound.shape[0],(time+num_fft)/16000)
+        jitter = call(pointProcess, "Get jitter (local)", point_to_sec, point2, 0.0001, 0.02, 3)
+        shimmer = call([audio_praat, pointProcess], "Get shimmer (local_dB)", point_to_sec, point2, 0.0001, 0.02, 1.3, 3.6)
+        jitters.append(jitter)
+        shimmers.append(shimmer)
+    jitters = np.array(jitters).reshape(1, len(jitters))
+    shimmers = np.array(shimmers).reshape(1, len(shimmers))
+    #print(jitter, shimmer, audio_praat.values.shape)
+    return normalize(np.nan_to_num(jitters)), normalize(np.nan_to_num(shimmers))
 
 
 # CONCATENATING RHYTHMIC FEATURES FOR THE AUDIO FILES AND SAVING THE DATA
@@ -268,14 +274,14 @@ def concat_features(sound):
     mf = mfcc(sound)
     dlt = delta(sound)
     dlt2 = delta_delta(sound)
-    #print(mf.shape, dlt.shape, rms.shape)
-    #jitter, shimmer = jitter_shimmer(sound)
-    c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t))
+    mels = mel_spectrogram(sound)
+    jitter, shimmer = jitter_shimmer(sound, 50, 400)
+    #print(rms.shape, ec.shape, jitter.shape, shimmer.shape)
+    c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t, jitter, shimmer))
     if (display_mode):
         librosa.display.specshow(c1)
         plt.colorbar()
         plt.title('Concatenation')
         plt.tight_layout()
         plt.show()
-    #print(c1.shape)
-    return c1
+    return mels

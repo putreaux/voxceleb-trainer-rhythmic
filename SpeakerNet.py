@@ -110,7 +110,7 @@ class ModelTrainer(object):
             top1 += prec1.detach().cpu().item()
             counter += 1
             index += stepsize
-            #print("data label ja lossi ossi ", data, label, loss)
+            #print("data label ja lossi ossi ", label, loss)
 
             telapsed = time.time() - tstart
             tstart = time.time()

@@ -15,6 +15,7 @@ from SpeakerNet import *
 from DatasetLoader import *
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from torch.utils.tensorboard import SummaryWriter
 warnings.simplefilter("ignore")
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
@@ -90,6 +91,8 @@ parser.add_argument('--mixedprec',      dest='mixedprec',   action='store_true',
 
 args = parser.parse_args()
 
+writer = SummaryWriter()
+
 ## Parse YAML
 def find_option_type(key, parser):
     for opt in parser._get_optional_actions():
@@ -148,7 +151,8 @@ def main_worker(gpu, ngpus_per_node, args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=1,
+        batch_size=32,
+        shuffle=True,
         num_workers=args.nDataLoaderThread,
         sampler=None,
         pin_memory=False,
@@ -224,6 +228,7 @@ def main_worker(gpu, ngpus_per_node, args):
         clr = [x['lr'] for x in trainer.__optimizer__.param_groups]
 
         loss, traineer = trainer.train_network(train_loader, verbose=(args.gpu == 0))
+        writer.add_scalar("Loss/train", loss, it)
 
         if args.gpu == 0:
             print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, TEER/TAcc {:2.2f}, TLOSS {:f}, LR {:f}".format(it, traineer, loss, max(clr)))
@@ -257,7 +262,8 @@ def main_worker(gpu, ngpus_per_node, args):
                print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, Test Accuracy {:2.2f}, TLOSS {:f}".format(it, acc, loss))
             trainer.saveParameters(args.model_save_path+"/model%09d.model"%it)
 
-
+    writer.flush()
+    writer.close()
     if args.gpu == 0:
         scorefile.close()
 

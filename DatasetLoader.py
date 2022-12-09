@@ -18,6 +18,9 @@ from scipy import signal
 from scipy.io import wavfile
 from torch.utils.data import Dataset, DataLoader
 import torch.distributed as dist
+import parselmouth
+from parselmouth.praat import call
+
 
 def round_down(num, divisor):
     return num - (num%divisor)
@@ -164,6 +167,7 @@ class train_dataset_loader(Dataset):
 
             # TRANSFORM THE AUDIO INTO ITS RHYTHMIC FEATURES 
             #audio = audio.reshape(audio.shape[0]*audio.shape[1], audio.shape[2])
+            #audio_for_praat = parselmouth.Sound(self.data_list[index], sampling_frequency=16000)
             audio = concat_features(audio.flatten())
             feat.append(audio);
 
@@ -204,11 +208,9 @@ class test_dataset_loader_for_identification(Dataset):
             self.data_list.append(filename)
     def __getitem__(self, index):
         audio = loadWAV(self.data_list[index], self.max_frames, evalmode=True)
-
+        audio_for_praat = parselmouth.Sound(self.data_list[index])
         # TRANSFORM THE AUDIO INTO ITS RHYTHMIC FEATURES 
         audio = concat_features(audio.flatten())
-        #print("audio shapeee ", audio.shape)
-        print(self.data_label[index], self.data_list[index], index)
         return torch.FloatTensor(audio), self.data_label[index]
 
     def __len__(self):

@@ -132,7 +132,7 @@ class train_dataset_loader(Dataset):
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
         dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
-
+        print(dictkeys)
         # Parse the training list into file names and ID indices
         self.data_list  = []
         self.data_label = []
@@ -149,7 +149,7 @@ class train_dataset_loader(Dataset):
 
         feat = []
         indices2 = [indices]
-
+        #print(indices, self.data_list[indices])
         for index in indices2:
 
             audio = loadWAV(self.data_list[index], self.max_frames, evalmode=False)
@@ -168,7 +168,7 @@ class train_dataset_loader(Dataset):
             # TRANSFORM THE AUDIO INTO ITS RHYTHMIC FEATURES 
             #audio = audio.reshape(audio.shape[0]*audio.shape[1], audio.shape[2])
             #audio_for_praat = parselmouth.Sound(self.data_list[index], sampling_frequency=16000)
-            audio = concat_features(audio.flatten())
+            audio = concat_features(audio.flatten(), self.data_list[index])
             feat.append(audio);
 
         feat = numpy.concatenate(feat, axis=0)
@@ -193,7 +193,7 @@ class test_dataset_loader_for_identification(Dataset):
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
         dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
-        print(dictkeys)
+        #print(dictkeys)
         # Parse the test list into file names and ID indices
         self.data_list  = []
         self.data_label = []
@@ -210,7 +210,7 @@ class test_dataset_loader_for_identification(Dataset):
         audio = loadWAV(self.data_list[index], self.max_frames, evalmode=True)
         audio_for_praat = parselmouth.Sound(self.data_list[index])
         # TRANSFORM THE AUDIO INTO ITS RHYTHMIC FEATURES 
-        audio = concat_features(audio.flatten())
+        audio = concat_features(audio.flatten(), self.data_list[index])
         return torch.FloatTensor(audio), self.data_label[index]
 
     def __len__(self):

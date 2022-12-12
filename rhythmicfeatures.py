@@ -14,6 +14,7 @@ import audiofile
 import opensmile
 from os.path import join
 import parselmouth
+import math
 
 from parselmouth.praat import call
 from sklearn.decomposition import PCA
@@ -267,7 +268,7 @@ def jitter_shimmer(sound, f0min, f0max):
 
 display_mode = False
 
-def concat_features(sound):
+def concat_features(sound, id):
     rms, ec, frames = rms_ecsg(sound)
     es = energy_spectrum(sound)
     t = tempo(sound, frames)
@@ -277,7 +278,7 @@ def concat_features(sound):
     mels = mel_spectrogram(sound)
     jitter, shimmer = jitter_shimmer(sound, 50, 200)
     #print(rms.shape, ec.shape, jitter.shape, shimmer.shape)
-    c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t, jitter, shimmer))
+    c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t))
     if (display_mode):
         librosa.display.specshow(c1)
         plt.colorbar()

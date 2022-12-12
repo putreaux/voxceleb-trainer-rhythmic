@@ -33,3 +33,21 @@ for id in list:
 
 
 f.close()
+'''
+
+f = open("data/test_list.txt", "r")
+
+lines = f.readlines()
+
+occurences = {}
+
+for line in lines:
+    data = line.strip().split()
+    id = data[0]
+    if id not in occurences.keys():
+        occurences[id] = 1
+    else:
+        occurences[id] += 1
+
+print(occurences)
+'''

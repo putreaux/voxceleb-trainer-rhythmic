@@ -29,7 +29,7 @@ parser.add_argument('--config',         type=str,   default=None,   help='Config
 ## Data loader
 parser.add_argument('--max_frames',     type=int,   default=200,    help='Input length to the network for training')
 parser.add_argument('--eval_frames',    type=int,   default=300,    help='Input length to the network for testing 0 uses the whole files')
-parser.add_argument('--batch_size',     type=int,   default=200,    help='Batch size, number of speakers per batch')
+parser.add_argument('--batch_size',     type=int,   default=32,    help='Batch size, number of speakers per batch')
 parser.add_argument('--max_seg_per_spk', type=int,  default=500,    help='Maximum number of utterances per speaker per epoch')
 parser.add_argument('--nDataLoaderThread', type=int, default=5,     help='Number of loader threads')
 parser.add_argument('--augment',        type=bool,  default=False,  help='Augment input')
@@ -37,7 +37,7 @@ parser.add_argument('--seed',           type=int,   default=10,     help='Seed f
 
 ## Training details
 parser.add_argument('--test_interval',  type=int,   default=10,     help='Test and save every [test_interval] epochs')
-parser.add_argument('--max_epoch',      type=int,   default=20,    help='Maximum number of epochs')
+parser.add_argument('--max_epoch',      type=int,   default=100,    help='Maximum number of epochs')
 parser.add_argument('--trainfunc',      type=str,   default="",     help='Loss function')
 
 ## Optimizer
@@ -147,6 +147,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ## Initialise trainer and data loader
     train_dataset = train_dataset_loader(**vars(args))
+    print(len(train_dataset))
     train_sampler = train_dataset_sampler(train_dataset, **vars(args))
 
     train_loader = torch.utils.data.DataLoader(
@@ -259,7 +260,8 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.verify==False:
             loss, acc = trainer.evaluateForIdentification(**vars(args))
             if args.gpu == 0:
-               print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, Test Accuracy {:2.2f}, TLOSS {:f}".format(it, acc, loss))
+               print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, Test Accuracy {:2.2f}, Test Loss {:f}".format(it, acc, loss))
+               scorefile.write("Epoch {:d}, Test Acc {:2.2f}, Test Loss {:f}\n".format(it, acc, loss))
             trainer.saveParameters(args.model_save_path+"/model%09d.model"%it)
 
     writer.flush()

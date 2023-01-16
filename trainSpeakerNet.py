@@ -17,6 +17,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.utils.tensorboard import SummaryWriter
 warnings.simplefilter("ignore")
+import multiprocessing
 
 ## ===== ===== ===== ===== ===== ===== ===== =====
 ## Parse arguments
@@ -53,7 +54,7 @@ parser.add_argument("--hard_rank",      type=int,   default=10,     help='Hard n
 parser.add_argument('--margin',         type=float, default=0.1,    help='Loss margin, only for some loss functions')
 parser.add_argument('--scale',          type=float, default=30,     help='Loss scale, only for some loss functions')
 parser.add_argument('--nPerSpeaker',    type=int,   default=1,      help='Number of utterances per speaker per batch, only for metric learning based losses')
-parser.add_argument('--nClasses',       type=int,   default=20,     help='Number of speakers in the softmax layer, only for softmax-based losses')
+parser.add_argument('--nClasses',       type=int,   default=863,     help='Number of speakers in the softmax layer, only for softmax-based losses')
 
 ## Evaluation parameters
 parser.add_argument('--dcf_p_target',   type=float, default=0.05,   help='A priori probability of the specified target speaker')
@@ -147,18 +148,17 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ## Initialise trainer and data loader
     train_dataset = train_dataset_loader(**vars(args))
-    print(len(train_dataset))
     train_sampler = train_dataset_sampler(train_dataset, **vars(args))
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=32,
+        batch_size=64,
         shuffle=True,
-        num_workers=args.nDataLoaderThread,
+        num_workers=multiprocessing.cpu_count()-1,
         sampler=None,
-        pin_memory=False,
+        pin_memory=True,
         worker_init_fn=worker_init_fn,
-        drop_last=False,
+        drop_last=True,
     )
     trainer     = ModelTrainer(s, **vars(args))
 
@@ -204,8 +204,6 @@ def main_worker(gpu, ngpus_per_node, args):
         
         if args.gpu == 0 and args.verify == False:
             loss, acc = trainer.evaluateForIdentification(args.test_list, **kwargs)
-            print('agj')
-
         return
 
     ## Save training code and params
@@ -225,7 +223,6 @@ def main_worker(gpu, ngpus_per_node, args):
     for it in range(it,args.max_epoch+1):
 
         train_sampler.set_epoch(it)
-
         clr = [x['lr'] for x in trainer.__optimizer__.param_groups]
 
         loss, traineer = trainer.train_network(train_loader, verbose=(args.gpu == 0))
@@ -257,7 +254,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     eerfile.write('{:2.4f}'.format(result[1]))
 
                 scorefile.flush()
-        if args.verify==False:
+        if it % args.test_interval == 5 and args.verify==False:
             loss, acc = trainer.evaluateForIdentification(**vars(args))
             if args.gpu == 0:
                print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, Test Accuracy {:2.2f}, Test Loss {:f}".format(it, acc, loss))

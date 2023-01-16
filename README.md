@@ -2,7 +2,7 @@
 
 This repository uses a modification of the VoxCeleb-trainer implementation which can be found in https://github.com/clovaai/voxceleb_trainer.
 
-Training the model works exactly as described below in the description of the original VoxCeleb dataset. The rhythmic features are extracted after loading the .wav files and the code is largely based on the work by Mariem Bouafif.
+Training the model works exactly as described below in the description of the original VoxCeleb dataset. The rhythmic features are extracted after loading the .wav files and the code is largely based on the work by Mariem Boyafif.
 
 # Preparations
 
@@ -19,11 +19,11 @@ The following script creates a list of training files into the /data folder.
 python filelister.py
 ```
 
-Once you've set up the files and the training list, you can train the model. See the section "Training examples" from below. To acquire the data augmentation datasets, see section "Data Preparation" below. 
+Once you've set up the files and the training list, you can train the model. See the section "Training examples" from below.
 
 Currently I've only set up the ResNetSE34L to take rhythmic features as input, and tested it with the ResNetSE34L_AM.yaml configuration. 
 
-Before I have time to implement a more convenient dataset size parameter, the train set size can be changed from line 127 in DatasetLoader.py. Test set size can be changed from line 152 in SpeakerNet.py.
+Before I have time to implement a more convenient dataset size parameter, the train set size can be changed from line 127 in DatasetLoader.py. Test set size can be changes from line 152 in SpeakerNet.py.
 
 
 # VoxCeleb trainer

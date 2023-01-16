@@ -20,6 +20,9 @@ from torch.utils.data import Dataset, DataLoader
 import torch.distributed as dist
 import parselmouth
 from parselmouth.praat import call
+import numba
+from numba import cuda
+
 
 
 def round_down(num, divisor):
@@ -208,7 +211,7 @@ class test_dataset_loader_for_identification(Dataset):
             self.data_list.append(filename)
     def __getitem__(self, index):
         audio = loadWAV(self.data_list[index], self.max_frames, evalmode=True)
-        audio_for_praat = parselmouth.Sound(self.data_list[index])
+        #audio_for_praat = parselmouth.Sound(self.data_list[index])
         # TRANSFORM THE AUDIO INTO ITS RHYTHMIC FEATURES 
         audio = concat_features(audio.flatten(), self.data_list[index])
         return torch.FloatTensor(audio), self.data_label[index]

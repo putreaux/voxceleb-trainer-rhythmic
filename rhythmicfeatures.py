@@ -15,6 +15,7 @@ import opensmile
 from os.path import join
 import parselmouth
 import math
+import time
 
 from parselmouth.praat import call
 from sklearn.decomposition import PCA
@@ -55,101 +56,6 @@ def normalize(arr):
     normalized = (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
     return normalized
 
-
-config_str = '''
-[componentInstances:cComponentManager]
-instance[dataMemory].type=cDataMemory
-
-;;; default source
-[componentInstances:cComponentManager]
-instance[dataMemory].type=cDataMemory
-
-;;; source
-
-\{\cm[source{?}:include external source]}
-
-;;; main section
-
-[componentInstances:cComponentManager]
-instance[framer].type = cFramer
-instance[lld].type = cPitchJitter
-instance[shs].type = cPitchShs
-instance[s_scale].type=cSpecScale
-instance[windower].type=cWindower
-instance[fft].type=cTransformFFT
-instance[magphase].type=cFFTmagphase
-
-[windower:cWindower]
-reader.dmLevel=framer
-writer.dmLevel=windower
-gain=1.0
-sigma=0.4
-
-[fft:cTransformFFT]
-reader.dmLevel=windower
-writer.dmLevel=fft
-zeroPadSymmetric = 1
-
-[magphase:cFFTmagphase]
-reader.dmLevel=fft
-writer.dmLevel=magphase
-
-[s_scale:cSpecScale]
-reader.dmLevel=magphase
-writer.dmLevel=s_scale
-copyInputName = 1
-processArrayFields = 0
-scale=octave
-sourceScale = lin
-interpMethod = spline
-minF = 25
-maxF = -1
-nPointsTarget = 0
-specSmooth = 1
-specEnhance = 1
-auditoryWeighting = 1
-
-[shs:cPitchShs]
-reader.dmLevel=s_scale
-writer.dmLevel=shs
-F0raw = 1
-
-[framer:cFramer]
-reader.dmLevel = wave
-writer.dmLevel = framer
-copyInputName = 1
-frameMode = fixed
-frameSize = 0.032
-frameStep = 0.016
-frameCenterSpecial = left
-noPostEOIprocessing = 1
-
-
-[componentInstances:cComponentManager]
-instance[lld].type = cPitchJitter
-
-[lld:cPitchJitter]
-
-reader.dmLevel = wave
-writer.dmLevel = lld
-F0reader.dmLevel = shs
-F0field = F0raw
-jitterLocal = 1
-shimmerLocalDB = 1
-jitterLocalEnv = 0
-jitterDDPEnv = 0
-shimmerLocal = 1
-shimmerLocalEnv = 0
-onlyVoiced = 0
-logHNR = 1
-inputMaxDelaySec = 0.5
-
-;;; sink
-
-\{\cm[sink{?}:include external sink]}
-
-'''
-
 num_fft = 512
 hop_len = 256
 sr = 16000
@@ -159,6 +65,7 @@ sr = 16000
 # BEAT TIMES AS 1D VECTOR OF 0S AND 1S
 # dataloader
 #root mean square and energy contour spectrogram
+
 def rms_ecsg(sound):
     #sound , sr = librosa.load(file_path+sound, sr=16000)
     S, phase = librosa.magphase(librosa.stft(sound, n_fft=num_fft, hop_length=hop_len) )# compute magnitude and phase content
@@ -260,7 +167,6 @@ def jitter_shimmer(sound, f0min, f0max):
         shimmers.append(shimmer)
     jitters = np.nan_to_num(np.array(jitters))
     shimmers = np.nan_to_num(np.array(shimmers))
-    #print(jitter, shimmer, audio_praat.values.shape)
     return normalize(jitters).reshape(1, jitters.shape[0]), normalize(shimmers).reshape(1, shimmers.shape[0])
 
 
@@ -271,18 +177,22 @@ display_mode = False
 def concat_features(sound, id):
     rms, ec, frames = rms_ecsg(sound)
     es = energy_spectrum(sound)
+    start = time.time()
     t = tempo(sound, frames)
     mf = mfcc(sound)
     dlt = delta(sound)
     dlt2 = delta_delta(sound)
-    mels = mel_spectrogram(sound)
+    #mels = mel_spectrogram(sound)
+    #start = time.time()
     jitter, shimmer = jitter_shimmer(sound, 50, 200)
-    #print(rms.shape, ec.shape, jitter.shape, shimmer.shape)
-    c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t))
-    if (display_mode):
+    #end = time.time()
+    #print(id, ": fe duration: ",  end - start)
+    c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t, np.nan_to_num(jitter), np.nan_to_num(shimmer)))
+    '''if (display_mode):
         librosa.display.specshow(c1)
         plt.colorbar()
         plt.title('Concatenation')
         plt.tight_layout()
         plt.show()
+   '''
     return c1

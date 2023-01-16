@@ -44,7 +44,7 @@ class ResNetSE(nn.Module):
             raise ValueError('Undefined encoder')
 
         self.fc = nn.Linear(out_dim, nOut)
-        self.fc2 = nn.Linear(nOut, 20)
+        self.fc2 = nn.Linear(nOut, 863)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

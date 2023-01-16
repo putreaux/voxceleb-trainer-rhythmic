@@ -92,7 +92,7 @@ class ModelTrainer(object):
 
         for data, data_label in loader:
             #data = data.transpose(1, 0)
-            data = data.reshape(data.shape[0], 1, data.shape[1], data.shape[2])
+            data = data.reshape(data.shape[0], 1, data.shape[1], data.shape[2]).cuda()
             self.__model__.zero_grad()
             label = torch.LongTensor(data_label).cuda()
 
@@ -110,7 +110,6 @@ class ModelTrainer(object):
             top1 += prec1.detach().cpu().item()
             counter += 1
             index += stepsize
-            #print("data label ja lossi ossi ", label, loss, prec1)
 
             telapsed = time.time() - tstart
             tstart = time.time()
@@ -151,7 +150,7 @@ class ModelTrainer(object):
         stepsize = test_loader.batch_size
 
         for data, data_label in test_loader:
-            data = data.reshape(data.shape[0], 1, data.shape[1], data.shape[2])
+            data = data.reshape(data.shape[0], 1, data.shape[1], data.shape[2]).cuda()
             self.__model__.eval()
             label = torch.LongTensor(data_label).cuda()
 

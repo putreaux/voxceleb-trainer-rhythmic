@@ -1,6 +1,7 @@
 import os
 import math
-path = "data/train/"
+import shutil
+path = "wav/"
 
 '''
 f = open("data/train_list.txt", "w")
@@ -12,11 +13,11 @@ for id in list:
                 f.write(id +" " + id+"/"+video_id+"/"+utterance+"\n")
 
 f.close()
+
+
 '''
-
-
-f = open("data/train_list.txt", "w")
-f2 = open("data/test_list.txt", "w")
+f = open("train_list.txt", "w")
+f2 = open("test_list.txt", "w")
 list = os.listdir(path)
 for id in list:
     video_ids = os.listdir(path+id)
@@ -33,12 +34,13 @@ for id in list:
 
 
 f.close()
-'''
 
-f = open("data/test_list.txt", "r")
+# tqdm
+
+f = open("train_list.txt", "r")
 
 lines = f.readlines()
-
+target = "train_data/"
 occurences = {}
 
 for line in lines:
@@ -49,5 +51,10 @@ for line in lines:
     else:
         occurences[id] += 1
 
-print(occurences)
-'''
+occurences2 = sorted(occurences.items(), key=lambda x:x[1])
+print(occurences2)
+
+for fn in occurences.keys():
+    if occurences[fn] > 50 and occurences[fn] < 200:
+        if os.path.exists(path+fn):
+            shutil.move(path+fn, target+fn)

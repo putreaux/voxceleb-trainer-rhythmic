@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import numpy, sys, random
 import time, itertools, importlib
 
-from DatasetLoader import test_dataset_loader, test_dataset_loader_for_identification
+from DatasetLoader import test_dataset_loader, test_dataset_loader_for_identification, test_feature_loader_for_identification
 from torch.cuda.amp import autocast, GradScaler
 
 
@@ -143,9 +143,8 @@ class ModelTrainer(object):
         with open(test_list) as f:
             lines = f.readlines()
 
-
         tstart = time.time()
-        test_dataset = test_dataset_loader_for_identification(test_list, max_frames, test_path, **kwargs)
+        test_dataset = test_feature_loader_for_identification(test_list, max_frames, test_path, **kwargs)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False, sampler=None)
         stepsize = test_loader.batch_size
 

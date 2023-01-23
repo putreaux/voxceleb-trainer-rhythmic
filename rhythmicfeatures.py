@@ -16,6 +16,7 @@ from os.path import join
 import parselmouth
 import math
 import time
+import random
 
 from parselmouth.praat import call
 from sklearn.decomposition import PCA
@@ -42,6 +43,10 @@ import soundfile as sf
 
 file_path = "D:\\vox1_dev_wav\\wav\\"
 sound_list = []
+
+train_path = "data/train"
+test_list_path = "data/test_list.txt"
+feature_save_path = "data/train_features/"
 
 '''f = open("train_list_full_trimmed.txt", "r")
 lines = f.readlines()
@@ -116,18 +121,6 @@ def tempo(sound, frames):
     tempo_array[beat_frames] = 1
     #print(tempo_array.shape, tempo_array)
     return tempo_array.reshape(1, len(tempo_array))
-    '''fig, ax = plt.subplots()
-    fig.set_size_inches(15, 5)
-    ax.set_ylabel("Time difference (s)")
-    ax.set_xlabel("speech units ")
-    g = sns.barplot(beat_nums, beat_time_diff, palette="rocket",ax=ax)
-    g = g.set(xticklabels=[])
-
-    fig, ax = plt.subplots()
-    fig.set_size_inches(15, 5)
-    ax.set_ylabel("Time difference (s)")
-    ax.set_xlabel("speech units ")
-    '''
 
 def mfcc(sound):
     #sound , sr = librosa.load(file_path+sound, sr=16000)
@@ -174,25 +167,69 @@ def jitter_shimmer(sound, f0min, f0max):
 
 display_mode = False
 
-def concat_features(sound, id):
+def concat_features(sound):
     rms, ec, frames = rms_ecsg(sound)
     es = energy_spectrum(sound)
     start = time.time()
     t = tempo(sound, frames)
+    end = time.time()
     mf = mfcc(sound)
     dlt = delta(sound)
     dlt2 = delta_delta(sound)
-    #mels = mel_spectrogram(sound)
-    #start = time.time()
     jitter, shimmer = jitter_shimmer(sound, 50, 200)
-    #end = time.time()
     #print(id, ": fe duration: ",  end - start)
     c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t, np.nan_to_num(jitter), np.nan_to_num(shimmer)))
-    '''if (display_mode):
-        librosa.display.specshow(c1)
-        plt.colorbar()
-        plt.title('Concatenation')
-        plt.tight_layout()
-        plt.show()
-   '''
-    return c1
+    return np.around(c1, 4)
+
+
+def loadWAV(filename, max_frames):
+
+    # Maximum audio length
+    max_audio = max_frames * 160 + 240
+
+    # Read wav file and convert to torch tensor
+    audio, sample_rate = librosa.load(filename, sr=16000)
+
+
+
+    audiosize = audio.shape[0]
+
+    if audiosize <= max_audio:
+        shortage    = max_audio - audiosize + 1
+        audio       = np.pad(audio, (0, shortage), 'wrap')
+        audiosize   = audio.shape[0]
+    startframe = np.array([np.int64(random.random()*(audiosize-max_audio))])
+
+    feats = []
+    for asf in startframe:
+        feats.append(audio[int(asf):int(asf)+max_audio])
+
+    feat = np.stack(feats,axis=0).astype(float)
+
+    return feat
+
+def save_features(sound_list):
+    with open(sound_list) as dataset_file:
+        lines = dataset_file.readlines()
+    # Make a dictionary of ID names and ID indices
+    dictkeys = list(set([x.split()[0] for x in lines]))
+    dictkeys.sort()
+    dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
+    print(dictkeys)
+    # Parse the training list into file names and ID indices
+    line_index = lines.index('----\n')
+    for lidx, line in enumerate(lines[line_index+1:]):
+        data = line.strip().split();
+        speaker_label = data[0]
+        filename = os.path.join(train_path,data[1])
+        if os.path.isdir(train_path+"/"+data[0]):
+            audio = loadWAV(filename, 200)
+            features = concat_features(audio.flatten())
+            index_of_file = data[1].find("/", data[1].find("/")+1)+1
+            newdir = feature_save_path+data[1][:index_of_file]
+            print(newdir)
+            os.makedirs(newdir, exist_ok=True)
+            np.savetxt(newdir+data[1][index_of_file:-4], features, fmt='%.4f')
+
+#save_features(train_list_path)
+#save_features(test_list_path)

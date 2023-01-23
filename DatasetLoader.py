@@ -23,7 +23,9 @@ from parselmouth.praat import call
 import numba
 from numba import cuda
 
-
+train_list_path = "data/train_list.txt"
+test_list_path = "data/test_list.txt"
+train_feature_path = "data/train_features/"
 
 def round_down(num, divisor):
     return num - (num%divisor)
@@ -130,7 +132,8 @@ class train_dataset_loader(Dataset):
         # Read training files
         with open(train_list) as dataset_file:
             lines = dataset_file.readlines();
-        #lines = lines[:1000]
+        random.shuffle(lines)
+        lines = lines[:1000]
         # Make a dictionary of ID names and ID indices
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
@@ -171,7 +174,7 @@ class train_dataset_loader(Dataset):
             # TRANSFORM THE AUDIO INTO ITS RHYTHMIC FEATURES 
             #audio = audio.reshape(audio.shape[0]*audio.shape[1], audio.shape[2])
             #audio_for_praat = parselmouth.Sound(self.data_list[index], sampling_frequency=16000)
-            audio = concat_features(audio.flatten(), self.data_list[index])
+            audio = concat_features(audio.flatten(), self.data_list[index]) # NUMPY ARRAY FROM FILE
             feat.append(audio);
 
         feat = numpy.concatenate(feat, axis=0)
@@ -179,6 +182,56 @@ class train_dataset_loader(Dataset):
 
     def __len__(self):
         return len(self.data_list)
+
+class train_feature_loader(Dataset):
+    def __init__(self, train_list, augment, musan_path, rir_path, max_frames, train_path, **kwargs):
+
+        self.augment_wav = AugmentWAV(musan_path=musan_path, rir_path=rir_path, max_frames = max_frames)
+
+        self.train_list = train_list
+        self.max_frames = max_frames;
+        self.musan_path = musan_path
+        self.rir_path   = rir_path
+        self.augment    = augment
+
+        # Read training files
+        with open(train_list) as dataset_file:
+            lines = dataset_file.readlines();
+        # Make a dictionary of ID names and ID indices
+        dictkeys = list(set([x.split()[0] for x in lines]))
+        dictkeys.sort()
+        dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
+        print(dictkeys)
+        # Parse the training list into file names and ID indices
+        self.data_list  = []
+        self.data_label = []
+
+        for lidx, line in enumerate(lines):
+            data = line.strip().split();
+
+            speaker_label = dictkeys[data[0]]
+            filename = os.path.join(train_feature_path,data[1].replace('.wav', ''));
+
+            self.data_label.append(speaker_label)
+            self.data_list.append(filename)
+    def __getitem__(self, indices):
+
+        feat = []
+        indices2 = [indices]
+        #print(indices, self.data_list[indices])
+        for index in indices2:
+
+            audio = numpy.loadtxt(self.data_list[index])
+            feat.append(audio)
+
+        feat = numpy.concatenate(feat, axis=0)
+        return torch.FloatTensor(feat), self.data_label[index]
+
+    def __len__(self):
+        return len(self.data_list)
+    def get_labels(self):
+        return self.data_label
+
 
 
 class test_dataset_loader_for_identification(Dataset):
@@ -191,7 +244,6 @@ class test_dataset_loader_for_identification(Dataset):
         # Read testing files
         with open(test_list) as dataset_file:
             lines = dataset_file.readlines();
-        #lines = lines[:200]
         # Make a dictionary of ID names and ID indices
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
@@ -213,11 +265,47 @@ class test_dataset_loader_for_identification(Dataset):
         audio = loadWAV(self.data_list[index], self.max_frames, evalmode=True)
         #audio_for_praat = parselmouth.Sound(self.data_list[index])
         # TRANSFORM THE AUDIO INTO ITS RHYTHMIC FEATURES 
-        audio = concat_features(audio.flatten(), self.data_list[index])
+        #audio = concat_features(audio.flatten(), self.data_list[index])
         return torch.FloatTensor(audio), self.data_label[index]
 
     def __len__(self):
         return len(self.data_list)
+
+class test_feature_loader_for_identification(Dataset):
+    def __init__(self, test_list, max_frames, test_path, **kwargs):
+
+        self.test_list = test_list
+        self.max_frames = max_frames
+        self.test_path = test_path
+
+        # Read testing files
+        with open(test_list) as dataset_file:
+            lines = dataset_file.readlines();
+        # Make a dictionary of ID names and ID indices
+        dictkeys = list(set([x.split()[0] for x in lines]))
+        dictkeys.sort()
+        dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
+        #print(dictkeys)
+        # Parse the test list into file names and ID indices
+        self.data_list  = []
+        self.data_label = []
+        #random.shuffle(lines)
+        for lidx, line in enumerate(lines):
+            data = line.strip().split();
+
+            speaker_label = dictkeys[data[0]]
+            if os.path.exists(train_feature_path+data[1].replace('.wav', '')):
+                filename = os.path.join(train_feature_path,data[1].replace('.wav', ''));
+
+                self.data_label.append(speaker_label)
+                self.data_list.append(filename)
+    def __getitem__(self, index):
+        audio = numpy.loadtxt(self.data_list[index])
+        return torch.FloatTensor(audio), self.data_label[index]
+
+    def __len__(self):
+        return len(self.data_list)
+
 
 
 class test_dataset_loader(Dataset):

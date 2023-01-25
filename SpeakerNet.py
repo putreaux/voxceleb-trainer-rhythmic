@@ -168,6 +168,38 @@ class ModelTrainer(object):
                 sys.stdout.flush()
         return (loss / counter, top1 / counter)
 
+    def validateForIdentification(self, val_labels, val_path, val_loader, **kwargs):
+
+        counter = 0
+        index = 0
+        loss = 0
+        top1 = 0
+        # accuracy
+        tstart = time.time()
+
+        stepsize = val_loader.batch_size
+
+        for data, data_label in val_loader:
+            data = data.reshape(data.shape[0], 1, data.shape[1], data.shape[2]).cuda()
+            self.__model__.eval()
+            label = torch.LongTensor(data_label).cuda()
+
+            nloss, prec1 = self.__model__(data, label)
+            loss += nloss.detach().cpu().item()
+            top1 += prec1.detach().cpu().item()
+            counter += 1
+            index += stepsize
+
+            telapsed = time.time() - tstart
+            tstart = time.time()
+
+            if 0 == 0:
+                sys.stdout.write(
+                    "\rProcessing {:d} of {:d}:".format(index, val_loader.__len__() * val_loader.batch_size))
+                sys.stdout.write(
+                    "Loss {:f} Acc {:2.3f}% - {:.2f} Hz ".format(loss / counter, top1 / counter, stepsize / telapsed))
+                sys.stdout.flush()
+        return (loss / counter, top1 / counter)
     def evaluateFromList(self, test_list, test_path, nDataLoaderThread, distributed, print_interval=100, num_eval=10, **kwargs):
 
         if distributed:

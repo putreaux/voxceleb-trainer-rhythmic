@@ -197,6 +197,10 @@ class train_feature_loader(Dataset):
         # Read training files
         with open(train_list) as dataset_file:
             lines = dataset_file.readlines();
+        random.shuffle(lines)
+        train_val_split = int(0.8*len(lines))
+        lines_train = lines[:train_val_split]
+        self.lines_val = lines[train_val_split:]
         # Make a dictionary of ID names and ID indices
         dictkeys = list(set([x.split()[0] for x in lines]))
         dictkeys.sort()
@@ -205,8 +209,10 @@ class train_feature_loader(Dataset):
         # Parse the training list into file names and ID indices
         self.data_list  = []
         self.data_label = []
+        self.data_list_val = []
+        self.data_label_val = []
 
-        for lidx, line in enumerate(lines):
+        for lidx, line in enumerate(lines_train):
             data = line.strip().split();
 
             speaker_label = dictkeys[data[0]]
@@ -216,22 +222,64 @@ class train_feature_loader(Dataset):
             self.data_list.append(filename)
     def __getitem__(self, indices):
 
-        feat = []
-        indices2 = [indices]
+        index = indices
         #print(indices, self.data_list[indices])
-        for index in indices2:
-
-            audio = numpy.loadtxt(self.data_list[index])
-            feat.append(audio)
-
-        feat = numpy.concatenate(feat, axis=0)
-        return torch.FloatTensor(feat), self.data_label[index]
+        audio = numpy.loadtxt(self.data_list[index])
+        '''audio[1:257, :] *= 0.1
+        audio[258:270, :] *= 1.5
+        audio[330:332, :] *= 10
+        '''
+        if audio.shape[0] != 333 or audio.shape[1] != 126:
+            print(audio.shape, self.data_list[index])
+        return torch.FloatTensor(audio), self.data_label[index]
 
     def __len__(self):
         return len(self.data_list)
     def get_labels(self):
         return self.data_label
+    def get_val_lines(self):
+        return self.lines_val
 
+class val_feature_loader(Dataset):
+    def __init__(self, train_list, augment, musan_path, rir_path, max_frames, train_path, lines, **kwargs):
+
+        self.augment_wav = AugmentWAV(musan_path=musan_path, rir_path=rir_path, max_frames = max_frames)
+
+        self.train_list = train_list
+        self.max_frames = max_frames;
+        self.musan_path = musan_path
+        self.rir_path   = rir_path
+        self.augment    = augment
+
+        # Read training files
+        lines_val = lines
+        # Make a dictionary of ID names and ID indices
+        # Parse the training list into file names and ID indices
+        dictkeys = list(set([x.split()[0] for x in lines]))
+        dictkeys.sort()
+        dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
+        self.data_list_val = []
+        self.data_label_val = []
+
+        for lidx, line in enumerate(lines_val):
+            data = line.strip().split();
+
+            speaker_label = dictkeys[data[0]]
+            filename = os.path.join(train_feature_path,data[1].replace('.wav', ''));
+
+            self.data_label_val.append(speaker_label)
+            self.data_list_val.append(filename)
+    def __getitem__(self, indices):
+
+        index = indices
+        #print(indices, self.data_list[indices])
+        audio = numpy.loadtxt(self.data_list_val[index])
+        return torch.FloatTensor(audio), self.data_label_val[index]
+
+    def __len__(self):
+        return len(self.data_list_val)
+    def get_labels(self):
+        return self.data_label_val
 
 
 class test_dataset_loader_for_identification(Dataset):
@@ -289,8 +337,8 @@ class test_feature_loader_for_identification(Dataset):
         # Parse the test list into file names and ID indices
         self.data_list  = []
         self.data_label = []
-        #random.shuffle(lines)
-        for lidx, line in enumerate(lines):
+        random.shuffle(lines)
+        for lidx, line in enumerate(lines[:10000]):
             data = line.strip().split();
 
             speaker_label = dictkeys[data[0]]

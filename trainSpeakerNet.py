@@ -30,7 +30,7 @@ parser.add_argument('--config',         type=str,   default=None,   help='Config
 parser.add_argument('--max_frames',     type=int,   default=200,    help='Input length to the network for training')
 parser.add_argument('--eval_frames',    type=int,   default=300,    help='Input length to the network for testing 0 uses the whole files')
 parser.add_argument('--batch_size',     type=int,   default=32,    help='Batch size, number of speakers per batch')
-parser.add_argument('--max_seg_per_spk', type=int,  default=500,    help='Maximum number of utterances per speaker per epoch')
+parser.add_argument('--max_seg_per_spk', type=int,  default=50,    help='Maximum number of utterances per speaker per epoch')
 parser.add_argument('--nDataLoaderThread', type=int, default=5,     help='Number of loader threads')
 parser.add_argument('--augment',        type=bool,  default=False,  help='Augment input')
 parser.add_argument('--seed',           type=int,   default=10,     help='Seed for the random number generator')
@@ -183,7 +183,10 @@ def main_worker(gpu, ngpus_per_node, args):
 
     ## Initialise trainer and data loader
     train_dataset = train_feature_loader(**vars(args))
+    val_lines = train_dataset.get_val_lines()
+    validation_dataset = val_feature_loader(**vars(args), lines=val_lines)
     train_labels = train_dataset.get_labels()
+    val_labels = validation_dataset.get_labels()
     weight = 1 / torch.Tensor(class_counts)
     label_weights = [weight[i] for i in train_labels]
 
@@ -193,12 +196,20 @@ def main_worker(gpu, ngpus_per_node, args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=32,
+        batch_size=64,
         shuffle=True,
         num_workers=multiprocessing.cpu_count()-1,
         sampler=None,
-        pin_memory=True,
+        pin_memory=False,
         worker_init_fn=worker_init_fn,
+        drop_last=True,
+    )
+    val_loader = torch.utils.data.DataLoader(
+        validation_dataset,
+        batch_size=32,
+        shuffle=False,
+        num_workers=multiprocessing.cpu_count() - 1,
+        pin_memory=True,
         drop_last=True,
     )
     trainer     = ModelTrainer(s, **vars(args))
@@ -268,6 +279,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         loss, traineer = trainer.train_network(train_loader, verbose=(args.gpu == 0))
         writer.add_scalar("Loss/train", loss, it)
+        writer.add_scalar("Acc/train", traineer, it)
 
         if args.gpu == 0:
             print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, TEER/TAcc {:2.2f}, TLOSS {:f}, LR {:f}".format(it, traineer, loss, max(clr)))
@@ -295,9 +307,13 @@ def main_worker(gpu, ngpus_per_node, args):
                     eerfile.write('{:2.4f}'.format(result[1]))
 
                 scorefile.flush()
-        if it % 1 == 0 and args.verify==False:
+        val_loss, val_acc = trainer.validateForIdentification(val_labels, validation_dataset, val_loader)
+        writer.add_scalar("Loss/validation", val_loss, it)
+        writer.add_scalar("Acc/validation", val_acc, it)
+        if it % 5 == 0 and args.verify==False:
             loss, acc = trainer.evaluateForIdentification(**vars(args))
             writer.add_scalar("Loss/test", loss, it)
+            writer.add_scalar("Acc/test", acc, it)
             if args.gpu == 0:
                print('\n',time.strftime("%Y-%m-%d %H:%M:%S"), "Epoch {:d}, Test Accuracy {:2.2f}, Test Loss {:f}".format(it, acc, loss))
                scorefile.write("Epoch {:d}, Test Acc {:2.2f}, Test Loss {:f}\n".format(it, acc, loss))

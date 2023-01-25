@@ -1,5 +1,4 @@
 #Settings things up
-import numpy as np
 #import sounddevice as sd
 import scipy.io.wavfile as wf
 from scipy.fftpack import dct
@@ -11,12 +10,15 @@ import io
 import os
 import audb
 import audiofile
+import soundfile
 import opensmile
 from os.path import join
 import parselmouth
 import math
 import time
 import random
+import glob
+from scipy import signal
 
 from parselmouth.praat import call
 from sklearn.decomposition import PCA
@@ -36,7 +38,6 @@ import os                          # for accessing local files
 import librosa.display             # librosa plot functions
 import matplotlib.pyplot as plt    # plotting with Matlab functionality
 import seaborn as sns              # data visualization based on matplotlib
-import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 import soundfile as sf
@@ -45,8 +46,11 @@ file_path = "D:\\vox1_dev_wav\\wav\\"
 sound_list = []
 
 train_path = "data/train"
+train_list_path = "data/train_list.txt"
 test_list_path = "data/test_list.txt"
 feature_save_path = "data/train_features/"
+musan_path = "data/musan_split"
+rir_path = "data/RIRS_NOISES/simulated_rirs"
 
 '''f = open("train_list_full_trimmed.txt", "r")
 lines = f.readlines()
@@ -179,7 +183,7 @@ def concat_features(sound):
     jitter, shimmer = jitter_shimmer(sound, 50, 200)
     #print(id, ": fe duration: ",  end - start)
     c1 = np.concatenate((rms, ec, es, mf, dlt, dlt2, t, np.nan_to_num(jitter), np.nan_to_num(shimmer)))
-    return np.around(c1, 4)
+    return np.around(c1, 6)
 
 
 def loadWAV(filename, max_frames):
@@ -208,7 +212,56 @@ def loadWAV(filename, max_frames):
 
     return feat
 
-def save_features(sound_list):
+class AugmentWAV(object):
+
+    def __init__(self, musan_path, rir_path, max_frames):
+
+        self.max_frames = max_frames
+        self.max_audio  = max_audio = max_frames * 160 + 240
+
+        self.noisetypes = ['noise','speech','music']
+
+        self.noisesnr   = {'noise':[0,15],'speech':[13,20],'music':[5,15]}
+        self.numnoise   = {'noise':[1,1], 'speech':[3,7],  'music':[1,1] }
+        self.noiselist  = {}
+
+        augment_files   = glob.glob(os.path.join(musan_path,'*/*/*.wav'))
+
+        for file in augment_files:
+            if not file.split('/')[-3] in self.noiselist:
+                self.noiselist[file.split('/')[-3]] = []
+            self.noiselist[file.split('/')[-3]].append(file)
+
+        self.rir_files  = glob.glob(os.path.join(rir_path,'*/*/*.wav'));
+
+    def additive_noise(self, noisecat, audio):
+
+        clean_db = 10 * np.log10(np.mean(audio ** 2)+1e-4)
+
+        numnoise    = self.numnoise[noisecat]
+        noiselist   = random.sample(self.noiselist[noisecat], random.randint(numnoise[0],numnoise[1]))
+
+        noises = []
+
+        for noise in noiselist:
+
+            noiseaudio  = loadWAV(noise, self.max_frames)
+            noise_snr   = random.uniform(self.noisesnr[noisecat][0],self.noisesnr[noisecat][1])
+            noise_db = 10 * np.log10(np.mean(noiseaudio[0] ** 2)+1e-4)
+            noises.append(np.sqrt(10 ** ((clean_db - noise_db - noise_snr) / 10)) * noiseaudio)
+
+        return np.sum(np.concatenate(noises,axis=0),axis=0,keepdims=True) + audio
+    def reverberate(self, audio):
+
+        rir_file    = random.choice(self.rir_files)
+
+        rir, fs     = soundfile.read(rir_file)
+        rir         = np.expand_dims(rir.astype(float),0)
+        rir         = rir / np.sqrt(np.sum(rir**2))
+
+        return signal.convolve(audio, rir, mode='full')[:,:self.max_audio]
+
+def save_features(sound_list, trainfeats):
     with open(sound_list) as dataset_file:
         lines = dataset_file.readlines()
     # Make a dictionary of ID names and ID indices
@@ -216,20 +269,37 @@ def save_features(sound_list):
     dictkeys.sort()
     dictkeys = { key : ii for ii, key in enumerate(dictkeys) }
     print(dictkeys)
+    augment_wav = AugmentWAV(musan_path=musan_path, rir_path=rir_path, max_frames=200)
+
     # Parse the training list into file names and ID indices
-    line_index = lines.index('----\n')
-    for lidx, line in enumerate(lines[line_index+1:]):
+    for lidx, line in enumerate(lines):
         data = line.strip().split();
         speaker_label = data[0]
         filename = os.path.join(train_path,data[1])
+       # print(os.path.join(feature_save_path, data[1][:-4]), os.path.exists(os.path.join(feature_save_path, data[1][:-4])))
+       # a = 2 / 0
+        index_of_file = data[1].find("/", data[1].find("/") + 1) + 1
+        newdir = feature_save_path + data[1][:index_of_file]
         if os.path.isdir(train_path+"/"+data[0]):
             audio = loadWAV(filename, 200)
+            augtype = 0
+            if trainfeats:
+                augtype = random.randint(1, 4)
+            if augtype == 1:
+                audio = augment_wav.reverberate(audio)
+            elif augtype == 2:
+                audio = augment_wav.additive_noise('music', audio)
+            elif augtype == 3:
+                audio = augment_wav.additive_noise('speech', audio)
+            elif augtype == 4:
+                audio = augment_wav.additive_noise('noise', audio)
             features = concat_features(audio.flatten())
             index_of_file = data[1].find("/", data[1].find("/")+1)+1
             newdir = feature_save_path+data[1][:index_of_file]
-            print(newdir)
             os.makedirs(newdir, exist_ok=True)
-            np.savetxt(newdir+data[1][index_of_file:-4], features, fmt='%.4f')
+            if lidx % 10 == 0:
+                print("Extracting features: {}%".format(str(100.00*(lidx/len(lines)))))
+            np.savetxt(newdir+data[1][index_of_file:-4], features, fmt='%.6f')
 
-#save_features(train_list_path)
-#save_features(test_list_path)
+#save_features(train_list_path, True)
+#save_features(test_list_path, False)
